@@ -18,8 +18,9 @@ parser = argparse.ArgumentParser(description='Preparing and svaing data')
 parser.add_argument('input_data', help="Input CSV file")
 parser.add_argument( '--input-cols', dest='input_cols', type = str, help="Used input cols", default="0,1,2,3,4,5,7,9,12")
 parser.add_argument( '--input-csv-sep', dest='input_separator', type = str, help="Input CSV separator", default=';')
-parser.add_argument( '--verbose', dest='verb', help="Verbose mode", action='store_true')
 parser.add_argument( '--out', dest='out', help="Output filename", type = str, default="normalized.csv")
+parser.add_argument( '--min-window', dest='minwin', help="Minimum size of window", type = int, default=100)
+parser.add_argument( '--verbose', dest='verb', help="Verbose mode", action='store_true')
 parser.add_argument( '--plot-day', dest='plot_day', help="Plot OPEN values the specific day", type = int, default=0)
 args = parser.parse_args()
 
@@ -84,7 +85,7 @@ for index, row in data.iterrows():
         if VERBOSE:
             log_txt = log_txt + "   index: {}   len, mean, std: {}, {:.2f}, {:.4f}".format(index, len(actual_open), one_day_mean, one_day_std)
         print(log_txt)
-        if len(actual_open) < 100:
+        if len(actual_open) < args.minwin:
             skipped_rows.append([num_of_days, first_index, index])
             first_index = index
             first_date = row[data.columns[0]]
@@ -121,5 +122,5 @@ if VERBOSE:
 
 ### Saving normalized data
 print("Saving normalized data...")
-data.to_csv(args.out)
+data.to_csv(args.out, index=False)
 print("Done")
