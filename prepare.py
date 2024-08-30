@@ -59,6 +59,10 @@ data["market_open_norm"] = None
 first_index = None
 days = {}
 skipped_rows = []
+last_day_mean = None
+last_day_std = None
+number_of_not_full_day = 0
+skipped_days = 0
 print("Normalizing...")
 for index, row in data.iterrows():
     if first_index == None:
@@ -73,27 +77,39 @@ for index, row in data.iterrows():
 
     if not is_same_day:
         num_of_days += 1
-        if SHOW_DAY > 0 and SHOW_DAY != num_of_days:
-            first_index = index
-            first_date = row[data.columns[0]]
-            continue
 
         actual_open = data.loc[first_index:index - 1, "open"]
         one_day_mean = actual_open.mean()
         one_day_std = actual_open.std()
+
+        if len(actual_open) < args.minwin:
+            if last_day_mean == None:
+                print("[WARNING] Skipped {} data rows".format(num_of_days))
+                skipped_rows.append([num_of_days, first_index, index - 1])
+                first_index = index
+                first_date = row[data.columns[0]]
+                num_of_days -= 1
+                skipped_days += 1
+                continue
+            else:
+                print("[WARNING] Used last day MEANS and STD")
+                one_day_mean = last_day_mean
+                one_day_std = last_day_std
+                number_of_not_full_day += 1
+
+        if SHOW_DAY > 0 and SHOW_DAY != num_of_days:
+            last_day_mean = one_day_mean
+            last_day_std = one_day_std
+            first_index = index
+            first_date = row[data.columns[0]]
+            continue
+
         log_txt = "Status: {:.2f}%   Current day: {}".format(round(float(first_index) / float(ROW_COUNT), 2), num_of_days)
         if VERBOSE:
             log_txt = log_txt + "   index: {}   len, mean, std: {}, {:.2f}, {:.4f}".format(index, len(actual_open), one_day_mean, one_day_std)
         print(log_txt)
-        if len(actual_open) < args.minwin:
-            skipped_rows.append([num_of_days, first_index, index])
-            first_index = index
-            first_date = row[data.columns[0]]
-            num_of_days -= 1
-            print("[WARNING] Skipped these data rows")
-            continue
 
-        days[num_of_days] = {"indices" : [first_index, index], "mean" : one_day_mean, "std" : one_day_std}
+        days[num_of_days] = {"indices" : [first_index, index - 1], "mean" : one_day_mean, "std" : one_day_std}
         for n in ["open", "high", "low", "close", "market_open"]:
             data.loc[first_index:index - 1, n + "_norm"] = data.loc[first_index:index - 1, n].apply(lambda x: (x - one_day_mean) / one_day_std)
 
@@ -103,6 +119,8 @@ for index, row in data.iterrows():
             plt.show()
             exit()
 
+        last_day_mean = one_day_mean
+        last_day_std = one_day_std
         first_index = index
         first_date = row[data.columns[0]]
 
@@ -112,12 +130,13 @@ print("Done")
 num_of_skipped_rows = sum([e[2] - e[1] + 1 for e in skipped_rows])
 print("")
 print("Normalized rows:", ROW_COUNT - num_of_skipped_rows)
-print("Skipped rows:", num_of_skipped_rows)
+print("Skipped rows (days):", num_of_skipped_rows, "({} day(s))".format(skipped_days))
 print("Number of valid days:", num_of_days)
+print(" which are not fully:", number_of_not_full_day)
 print("")
 
 if VERBOSE:
-    print("List of skipped inices (day, fisrt index, last index):", skipped_rows)
+    print("List of skipped indices (day, fisrt index, last index):", skipped_rows)
     print("")
 
 ### Saving normalized data
