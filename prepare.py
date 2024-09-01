@@ -74,6 +74,10 @@ for index, row in data.iterrows():
     is_same_day = date.date() == first_date.date()
     #is_next_day = date.date() == first_date.date() + datetime.timedelta(days=1)
     #is_in_the_time = date.time() <= datetime.time(22, 0, 0)
+    is_last_etap = index == data.index[-1]
+    if is_last_etap:
+        is_same_day = False
+        index += 1
 
     if not is_same_day:
         num_of_days += 1
@@ -104,7 +108,7 @@ for index, row in data.iterrows():
             first_date = row[data.columns[0]]
             continue
 
-        log_txt = "Status: {:.2f}%   Current day: {}".format(round(float(first_index) / float(ROW_COUNT), 2), num_of_days)
+        log_txt = "Status: {:.2f}%   Current day: {}".format(round(100 * float(index) / float(ROW_COUNT), 2), num_of_days)
         if VERBOSE:
             log_txt = log_txt + "   index: {}   len, mean, std: {}, {:.2f}, {:.4f}".format(index, len(actual_open), one_day_mean, one_day_std)
         print(log_txt)
