@@ -34,7 +34,7 @@ print("Done")
 
 ### Remove NaN rows
 print("Remove NaN rows...")
-data = raw_data.dropna().reset_index(drop=True)
+data = raw_data.dropna().reset_index(drop = True)
 print("Done")
 
 ### Convert timestamps from STRING
@@ -43,7 +43,7 @@ _date_time = data.pop('datetime')
 _date_time = _date_time.map(lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S") if x != "" or x != np.nan or x != None else None)
 data['datetime'] = _date_time
 timestamp_s = _date_time.map(pd.Timestamp.timestamp)
-data.insert(0, 'timestamp', timestamp_s)
+#data.insert(0, 'timestamp', timestamp_s)
 print("Done")
 
 ### Get days
@@ -74,8 +74,8 @@ for index, row in data.iterrows():
 
 NUMBER_OF_DAYS = len(days)
 print("Done (Found '{}' day(s))".format(NUMBER_OF_DAYS))
+_date_time = data.pop('datetime')
 print(data)
-exit()
 
 ### Split data
 train_data = data[0:days[int(0.7 * NUMBER_OF_DAYS)][1] + 1]
@@ -133,13 +133,11 @@ class WindowGenerator():
         return inputs, labels
 
 
-w2 = WindowGenerator(input_width=6, label_width=1, shift=1,
-                     label_columns=['T (degC)'])
+w2 = WindowGenerator(input_width=100, label_width=1, shift=1,
+                     label_columns=['open_norm'])
 w2
 # Stack three slices, the length of the total window.
-example_window = tf.stack([np.array(train_data[:w2.total_window_size]),
-                           np.array(train_data[100:100+w2.total_window_size]),
-                           np.array(train_data[200:200+w2.total_window_size])])
+example_window = tf.stack(np.asarray([train_data[:w2.total_window_size * 2]]).astype(np.float32))
 
 example_inputs, example_labels = w2.split_window(example_window)
 

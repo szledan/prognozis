@@ -27,20 +27,20 @@ args = parser.parse_args()
 ### Read raw data from file
 print("Reading data...")
 raw_data = pd.read_csv(args.input_data, sep=args.input_separator)
-raw_data = raw_data.iloc[:, [int(i) for i in args.input_cols.split(',')]]
+data = raw_data.iloc[:, [int(i) for i in args.input_cols.split(',')]]
 print("Done")
 
 ### Convert timestamps from STRING
-def date_converting(data, col=0):
-    data[data.columns[0]] = data[data.columns[0]].apply(lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S"))
-    return data
-
 print("Convert timestamps...")
-data = date_converting(raw_data)
+_date_time = data.pop('datetime')
+_date_time = _date_time.map(lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S") if x != "" or x != np.nan or x != None else None)
+data['datetime'] = _date_time
+timestamp_s = _date_time.map(pd.Timestamp.timestamp)
+#data.insert(0, 'timestamp', timestamp_s)
 print("Done")
 
 ### Initialize
-ROW_COUNT = len(data)
+ROW_COUNT = data.shape[0]
 num_of_days = 0
 SHOW_DAY = args.plot_day
 VERBOSE = args.verb
