@@ -16,7 +16,7 @@ import seaborn as sns
 ### Parse arguments
 parser = argparse.ArgumentParser(description='Preparing and svaing data')
 parser.add_argument('input_data', help="Input CSV file")
-parser.add_argument( '--input-cols', dest='input_cols', type = str, help="Used input cols", default="0,1,2,3,4,5,7,9,12")
+parser.add_argument( '--input-cols', dest='input_cols', type = str, help="Used input cols", default="0,5,12,9,1,2,3,4,7")
 parser.add_argument( '--input-csv-sep', dest='input_separator', type = str, help="Input CSV separator", default=';')
 parser.add_argument( '--out', dest='out', help="Output filename", type = str, default="normalized.csv")
 parser.add_argument( '--min-window', dest='minwin', help="Minimum size of window", type = int, default=100)
@@ -32,11 +32,8 @@ print("Done")
 
 ### Convert timestamps from STRING
 print("Convert timestamps...")
-_date_time = data.pop('datetime')
-_date_time = _date_time.map(lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S") if x != "" or x != np.nan or x != None else None)
-data['datetime'] = _date_time
-timestamp_s = _date_time.map(pd.Timestamp.timestamp)
-#data.insert(0, 'timestamp', timestamp_s)
+data['datetime'] = data['datetime'].apply(lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S") if x != "" or x != np.nan or x != None else None)
+data.insert(len(data.columns), 'day_count', None)
 print("Done")
 
 ### Initialize
@@ -49,11 +46,11 @@ if VERBOSE:
     print("Input columns", data.columns)
 
 ### Extend dataframe with normalized columns
-data["open_norm"] = None
-data["high_norm"] = None
-data["low_norm"] = None
-data["close_norm"] = None
-data["market_open_norm"] = None
+data.insert(1, 'market_open_norm', None)
+data.insert(1, 'close_norm', None)
+data.insert(1, 'low_norm', None)
+data.insert(1, 'high_norm', None)
+data.insert(1, 'open_norm', None)
 
 ### Normalize numeric data
 first_index = None
@@ -67,10 +64,10 @@ print("Normalizing...")
 for index, row in data.iterrows():
     if first_index == None:
         first_index = index
-        first_date = row[data.columns[0]]
+        first_date = row['datetime']
 
     # Get current date
-    date = row[data.columns[0]]
+    date = row['datetime']
     is_same_day = date.date() == first_date.date()
     #is_next_day = date.date() == first_date.date() + datetime.timedelta(days=1)
     #is_in_the_time = date.time() <= datetime.time(22, 0, 0)
@@ -91,7 +88,7 @@ for index, row in data.iterrows():
                 print("[WARNING] Skipped {} data rows".format(num_of_days))
                 skipped_rows.append([num_of_days, first_index, index - 1])
                 first_index = index
-                first_date = row[data.columns[0]]
+                first_date = row['datetime']
                 num_of_days -= 1
                 skipped_days += 1
                 continue
@@ -105,17 +102,18 @@ for index, row in data.iterrows():
             last_day_mean = one_day_mean
             last_day_std = one_day_std
             first_index = index
-            first_date = row[data.columns[0]]
+            first_date = row['datetime']
             continue
 
-        log_txt = "Status: {:.2f}%   Current day: {}".format(round(100 * float(index) / float(ROW_COUNT), 2), num_of_days)
+        log_txt = "Progress: {:.2f}%   Current day: {}".format(round(100 * float(index) / float(ROW_COUNT), 2), num_of_days)
         if VERBOSE:
             log_txt = log_txt + "   index: {}   len, mean, std: {}, {:.2f}, {:.4f}".format(index, len(actual_open), one_day_mean, one_day_std)
         print(log_txt)
 
         days[num_of_days] = {"indices" : [first_index, index - 1], "mean" : one_day_mean, "std" : one_day_std}
         for n in ["open", "high", "low", "close", "market_open"]:
-            data.loc[first_index:index - 1, n + "_norm"] = data.loc[first_index:index - 1, n].apply(lambda x: (x - one_day_mean) / one_day_std)
+            data.loc[first_index:index - 1, n + "_norm"] = data.loc[first_index:index - 1, n].apply(lambda x: (x - one_day_mean) / one_day_std).astype(float).round(7)
+        data.loc[first_index:index - 1, 'day_count'] = num_of_days
 
         if SHOW_DAY == num_of_days:
             title = str(data.loc[first_index]["datetime"]) + " - " + str(data.loc[index -1]["datetime"])
@@ -126,8 +124,12 @@ for index, row in data.iterrows():
         last_day_mean = one_day_mean
         last_day_std = one_day_std
         first_index = index
-        first_date = row[data.columns[0]]
+        first_date = row['datetime']
 
+print("Done")
+
+print("Remove NaN rows...")
+data = data.dropna().reset_index(drop = True)
 print("Done")
 
 ### Print summarized information
@@ -145,5 +147,10 @@ if VERBOSE:
 
 ### Saving normalized data
 print("Saving normalized data...")
+data.pop('open')
+data.pop('high')
+data.pop('low')
+data.pop('close')
+data.pop('market_open')
 data.to_csv(args.out, index=False)
 print("Done")
