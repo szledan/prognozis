@@ -19,7 +19,7 @@ import seaborn as sns
 ### Parse arguments
 parser = argparse.ArgumentParser(description='Training model')
 parser.add_argument('input_data', help="Input normalized data CSV file")
-parser.add_argument( '--input-cols', dest='input_cols', type = str, help="Used input cols", default="9,10,11,12,13,5,8,7,0")
+parser.add_argument( '--input-cols', dest='input_cols', type = str, help="Used input cols", default="0,1,2,3,4,5,6,7,8,9")
 parser.add_argument( '--input-csv-sep', dest='input_separator', type = str, help="Input CSV separator", default=',')
 parser.add_argument( '--out', dest='out', help="Out model filename", type = str, default="model.tflite")
 parser.add_argument( '--verbose', dest='verb', help="Verbose mode", action='store_true')
@@ -41,9 +41,7 @@ print("Done")
 print("Convert timestamps...")
 _date_time = data.pop('datetime')
 _date_time = _date_time.map(lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S") if x != "" or x != np.nan or x != None else None)
-data['datetime'] = _date_time
 timestamp_s = _date_time.map(pd.Timestamp.timestamp)
-#data.insert(0, 'timestamp', timestamp_s)
 print("Done")
 
 ### Get days
@@ -52,31 +50,17 @@ ROW_COUNT = data.shape[0]
 first_index = None
 num_of_days = 0
 days = {}
+last_day = 1
 for index, row in data.iterrows():
-    if first_index == None:
+    if row['day_count'] != last_day:
+        days[last_day] = [first_index, index - 1]
+        last_day = data['day_count'][index]
         first_index = index
-        first_date = row['datetime']
-
-    # Get current date
-    date = row['datetime']
-    is_same_day = date.date() == first_date.date()
-    is_last_etap = index == data.index[-1]
-    if is_last_etap:
-        is_same_day = False
-        index += 1
-
-    if not is_same_day:
-        print("Progress: {:.2f}%".format(round(100 * float(index) / float(ROW_COUNT), 2)))
-        num_of_days += 1
-        days[num_of_days] = [first_index, index - 1]
-        first_index = index
-        first_date = row['datetime']
 
 NUMBER_OF_DAYS = len(days)
 print("Done (Found '{}' day(s))".format(NUMBER_OF_DAYS))
-_date_time = data.pop('datetime')
 print(data)
-
+exit()
 ### Split data
 train_data = data[0:days[int(0.7 * NUMBER_OF_DAYS)][1] + 1]
 val_data = data[days[int(0.7 * NUMBER_OF_DAYS) + 1][0]:days[int(0.9 * NUMBER_OF_DAYS)][1] + 1]
