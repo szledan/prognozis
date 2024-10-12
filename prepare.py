@@ -42,8 +42,8 @@ num_of_days = 0
 SHOW_DAY = args.plot_day
 VERBOSE = args.verb
 if VERBOSE:
-    print("Number of rows: ", len(data))
-    print("Input columns", data.columns)
+  print("Number of rows: ", len(data))
+  print("Input columns", data.columns)
 
 ### Extend dataframe with normalized columns
 data.insert(1, 'market_open_norm', None)
@@ -62,69 +62,69 @@ number_of_not_full_day = 0
 skipped_days = 0
 print("Normalizing...")
 for index, row in data.iterrows():
-    if first_index == None:
+  if first_index == None:
+    first_index = index
+    first_date = row['datetime']
+
+  # Get current date
+  date = row['datetime']
+  is_same_day = date.date() == first_date.date()
+  #is_next_day = date.date() == first_date.date() + datetime.timedelta(days=1)
+  #is_in_the_time = date.time() <= datetime.time(22, 0, 0)
+  is_last_etap = index == data.index[-1]
+  if is_last_etap:
+    is_same_day = False
+    index += 1
+
+  if not is_same_day:
+    num_of_days += 1
+
+    actual_open = data.loc[first_index:index - 1, "open"]
+    one_day_mean = actual_open.mean()
+    one_day_std = actual_open.std()
+
+    if len(actual_open) < args.minwin:
+      if last_day_mean == None:
+        print("[WARNING] Skipped {} data rows".format(num_of_days))
+        skipped_rows.append([num_of_days, first_index, index - 1])
         first_index = index
         first_date = row['datetime']
+        num_of_days -= 1
+        skipped_days += 1
+        continue
+      else:
+        print("[WARNING] Used last day MEANS and STD")
+        one_day_mean = last_day_mean
+        one_day_std = last_day_std
+        number_of_not_full_day += 1
 
-    # Get current date
-    date = row['datetime']
-    is_same_day = date.date() == first_date.date()
-    #is_next_day = date.date() == first_date.date() + datetime.timedelta(days=1)
-    #is_in_the_time = date.time() <= datetime.time(22, 0, 0)
-    is_last_etap = index == data.index[-1]
-    if is_last_etap:
-        is_same_day = False
-        index += 1
+    if SHOW_DAY > 0 and SHOW_DAY != num_of_days:
+      last_day_mean = one_day_mean
+      last_day_std = one_day_std
+      first_index = index
+      first_date = row['datetime']
+      continue
 
-    if not is_same_day:
-        num_of_days += 1
+    log_txt = "Progress: {:.2f}%   Current day: {}".format(round(100 * float(index) / float(ROW_COUNT), 2), num_of_days)
+    if VERBOSE:
+      log_txt = log_txt + "   index: {}   len, mean, std: {}, {:.2f}, {:.4f}".format(index, len(actual_open), one_day_mean, one_day_std)
+    print(log_txt)
 
-        actual_open = data.loc[first_index:index - 1, "open"]
-        one_day_mean = actual_open.mean()
-        one_day_std = actual_open.std()
+    days[num_of_days] = {"indices" : [first_index, index - 1], "mean" : one_day_mean, "std" : one_day_std}
+    for n in ["open", "high", "low", "close", "market_open"]:
+      data.loc[first_index:index - 1, n + "_norm"] = data.loc[first_index:index - 1, n].apply(lambda x: (x - one_day_mean) / one_day_std).astype(float).round(7)
+    data.loc[first_index:index - 1, 'day_count'] = num_of_days
 
-        if len(actual_open) < args.minwin:
-            if last_day_mean == None:
-                print("[WARNING] Skipped {} data rows".format(num_of_days))
-                skipped_rows.append([num_of_days, first_index, index - 1])
-                first_index = index
-                first_date = row['datetime']
-                num_of_days -= 1
-                skipped_days += 1
-                continue
-            else:
-                print("[WARNING] Used last day MEANS and STD")
-                one_day_mean = last_day_mean
-                one_day_std = last_day_std
-                number_of_not_full_day += 1
+    if SHOW_DAY == num_of_days:
+      title = str(data.loc[first_index]["datetime"]) + " - " + str(data.loc[index -1]["datetime"])
+      axs = data.loc[first_index:index - 1, ["open", "open_norm"]].plot.line(stacked=False, layout=(1,2), subplots=True, title=title)
+      plt.show()
+      exit()
 
-        if SHOW_DAY > 0 and SHOW_DAY != num_of_days:
-            last_day_mean = one_day_mean
-            last_day_std = one_day_std
-            first_index = index
-            first_date = row['datetime']
-            continue
-
-        log_txt = "Progress: {:.2f}%   Current day: {}".format(round(100 * float(index) / float(ROW_COUNT), 2), num_of_days)
-        if VERBOSE:
-            log_txt = log_txt + "   index: {}   len, mean, std: {}, {:.2f}, {:.4f}".format(index, len(actual_open), one_day_mean, one_day_std)
-        print(log_txt)
-
-        days[num_of_days] = {"indices" : [first_index, index - 1], "mean" : one_day_mean, "std" : one_day_std}
-        for n in ["open", "high", "low", "close", "market_open"]:
-            data.loc[first_index:index - 1, n + "_norm"] = data.loc[first_index:index - 1, n].apply(lambda x: (x - one_day_mean) / one_day_std).astype(float).round(7)
-        data.loc[first_index:index - 1, 'day_count'] = num_of_days
-
-        if SHOW_DAY == num_of_days:
-            title = str(data.loc[first_index]["datetime"]) + " - " + str(data.loc[index -1]["datetime"])
-            axs = data.loc[first_index:index - 1, ["open", "open_norm"]].plot.line(stacked=False, layout=(1,2), subplots=True, title=title)
-            plt.show()
-            exit()
-
-        last_day_mean = one_day_mean
-        last_day_std = one_day_std
-        first_index = index
-        first_date = row['datetime']
+    last_day_mean = one_day_mean
+    last_day_std = one_day_std
+    first_index = index
+    first_date = row['datetime']
 
 print("Done")
 
@@ -142,8 +142,8 @@ print(" which are not fully:", number_of_not_full_day)
 print("")
 
 if VERBOSE:
-    print("List of skipped indices (day, fisrt index, last index):", skipped_rows)
-    print("")
+  print("List of skipped indices (day, fisrt index, last index):", skipped_rows)
+  print("")
 
 ### Saving normalized data
 print("Saving normalized data...")
