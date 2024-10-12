@@ -19,7 +19,7 @@ import seaborn as sns
 ### Parse arguments
 parser = argparse.ArgumentParser(description='Training model')
 parser.add_argument('input_data', help="Input normalized data CSV file")
-parser.add_argument( '--input-cols', dest='input_cols', type = str, help="Used input cols", default="0,1,2,3,4,5,6,7,8,9")
+parser.add_argument( '--input-cols', dest='input_cols', type = str, help="Used input cols", default="0,1,2,3,4,5,6,7,9,8")
 parser.add_argument( '--input-csv-sep', dest='input_separator', type = str, help="Input CSV separator", default=',')
 parser.add_argument( '--out', dest='out', help="Out model filename", type = str, default="model.tflite")
 parser.add_argument( '--verbose', dest='verb', help="Verbose mode", action='store_true')
@@ -99,7 +99,7 @@ class WindowGenerator():
       f'Label column name(s): {self.label_columns}'])
 
   def split_window(self, features):
-    inputs = features[:, self.input_slice, :]
+    inputs = features[:, self.input_slice, :-1]
     labels = features[:, self.labels_slice, :]
     if self.label_columns is not None:
       labels = tf.stack([labels[:, :, self.column_indices[name]] for name in self.label_columns], axis=-1)
@@ -111,21 +111,71 @@ class WindowGenerator():
 
     return inputs, labels
 
+  def make_dataset(self, data):
+    data = np.array(data, dtype=np.float32)
+    ds = tf.keras.utils.timeseries_dataset_from_array(
+        data=data,
+        targets=None,
+        sequence_length=self.total_window_size,
+        sequence_stride=1,
+        shuffle=True,
+        batch_size=32,)
 
-w2 = WindowGenerator(input_width=100, label_width=1, shift=1,
-           label_columns=['open_norm'])
-print(w2)
-print(">>>", np.asarray(train_data[:w2.total_window_size]).astype(np.float32))
-# Stack three slices, the length of the total window.
-example_window = tf.stack([np.array(train_data[:w2.total_window_size]).astype(np.float32), np.array(train_data[:w2.total_window_size]).astype(np.float32)])
+    ds = ds.map(self.split_window)
+    return ds
 
-example_inputs, example_labels = w2.split_window(example_window)
-print(num_features)
-print(data)
+  @property
+  def train(self):
+    return self.make_dataset(self.train_df)
 
-print('All shapes are: (batch, time, features)')
-print(f'Window shape: {example_window.shape}')
-print(f'Inputs shape: {example_inputs.shape}')
-print(f'Labels shape: {example_labels.shape}')
+  @property
+  def val(self):
+    return self.make_dataset(self.val_df)
 
+  @property
+  def test(self):
+    return self.make_dataset(self.test_df)
+
+  @property
+  def example(self):
+    """Get and cache an example batch of `inputs, labels` for plotting."""
+    result = getattr(self, '_example', None)
+    if result is None:
+      # No example batch was found, so get one from the `.train` dataset
+      result = next(iter(self.train))
+      # And cache it for next time
+      self._example = result
+    return result
+
+
+MAX_EPOCHS = 20
+
+def compile_and_fit(model, window, patience=2):
+  early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                    patience=patience,
+                                                    mode='min')
+
+  model.compile(loss=tf.keras.losses.MeanSquaredError(),
+                optimizer=tf.keras.optimizers.Adam(),
+                metrics=[tf.keras.metrics.MeanAbsoluteError()])
+
+  history = model.fit(window.train, epochs=MAX_EPOCHS,
+                      validation_data=window.val,
+                      callbacks=[early_stopping])
+  return history
+
+conv_window = WindowGenerator(input_width=100, label_width=1, shift=1, label_columns=['target'])
+
+multi_step_dense = tf.keras.Sequential([
+    # Shape: (time, features) => (time*features)
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(units=32, activation='relu'),
+    tf.keras.layers.Dense(units=32, activation='relu'),
+    tf.keras.layers.Dense(units=1),
+    # Add back the time dimension.
+    # Shape: (outputs) => (1, outputs)
+    tf.keras.layers.Reshape([1, -1]),
+])
+
+history = compile_and_fit(multi_step_dense, conv_window)
 exit()
