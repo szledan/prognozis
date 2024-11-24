@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import tensorflow as tf
-import tensorflow_datasets as tfds
-
 import argparse
 import datetime
 import numpy as np
 import pandas as pd
+
+import tensorflow as tf
+import tensorflow_datasets as tfds
+#import tensorflowjs as tfjs
 
 # Just for plotting data
 import IPython
@@ -119,7 +120,7 @@ class WindowGenerator():
         sequence_length=self.total_window_size,
         sequence_stride=1,
         shuffle=True,
-        batch_size=32,)
+        batch_size=64,)
 
     ds = ds.map(self.split_window)
     return ds
@@ -177,5 +178,29 @@ multi_step_dense = tf.keras.Sequential([
     tf.keras.layers.Reshape([1, -1]),
 ])
 
+#multi_step_dense = tf.keras.Sequential([
+#    # Shape: (time, features) => (time*features)
+#    tf.keras.layers.Dense(units=64, activation='relu'),
+#    tf.keras.layers.Conv1D(filters=32,
+#                               kernel_size=(9,),
+#                               activation='relu'),
+#    tf.keras.layers.Dense(units=32, activation='relu'),
+#    tf.keras.layers.Dense(units=1),
+#    # Add back the time dimension.
+#    # Shape: (outputs) => (1, outputs)
+#    tf.keras.layers.Reshape([1, -1]),
+#])
+
 history = compile_and_fit(multi_step_dense, conv_window)
+
+
+#multi_step_dense.predict([2.1857384, 2.2244708, 2.174672, 2.2134044, -0.7800609, 307, 0])
+
+if True:
+#  tfjs.converters.save_keras_model(multi_step_dense, ".")
+  pass
+else:
+  #multi_step_dense.save("model.h5")
+  pass
+
 exit()
